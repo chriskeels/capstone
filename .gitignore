@@ -1,0 +1,20 @@
+node_modules
+.next
+.environments
+
+# Environment files
+.env
+.env.local
+.env.*
+!.env.example
+
+# Build outputs
+*.log
+
+# Deployment configs
+.vercel
+.netlify
+
+# OS files
+.DS_Store
+Thumbs.db

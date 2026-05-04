@@ -1,0 +1,183 @@
+// ============================================================
+// Get Up & Glo — Prisma Schema
+// Database: Neon PostgreSQL
+// ORM: Prisma
+// Auth: Clerk
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProductCategory {
+  RELAXATION
+  FOCUS
+  ROMANCE
+  ENERGY
+  SLEEP
+  SEASONAL
+  LIMITED
+}
+
+// ============================================================
+// USER
+// Clerk owns the identity (email, password, OAuth).
+// We store a local record linked via clerkId for all app data.
+// ============================================================
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique  // Clerk's user ID (e.g. user_2abc...)
+  email     String   @unique  // mirrored from Clerk for querying
+  name      String?           // mirrored from Clerk displayName
+  avatarUrl String?           // mirrored from Clerk profileImageUrl
+  bio       String?           // app-level field, not in Clerk
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  rituals         Ritual[]
+  browsingEvents  BrowsingEvent[]
+  recommendations Recommendation[]
+
+  @@map("users")
+}
+
+// ============================================================
+// PRODUCTS
+// Admin-managed. Users browse in-app, purchase via external link.
+// ============================================================
+
+model Product {
+  id               String          @id @default(cuid())
+  name             String
+  slug             String          @unique
+  description      String
+  shortDescription String?
+  price            Decimal         @db.Decimal(10, 2)
+  imageUrl         String?
+  imageAlt         String?
+  externalUrl      String          // redirects to purchase platform
+  category         ProductCategory
+  scent            String?
+  burnTime         Int?            // hours
+  size             String?         // e.g. "8 oz", "12 oz"
+  ingredients      String?
+  isFeatured       Boolean         @default(false)
+  isActive         Boolean         @default(true)
+  stockStatus      String          @default("in_stock")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  // Relations
+  rituals         Ritual[]
+  browsingEvents  BrowsingEvent[]
+  recommendations Recommendation[]
+  similarTo       ProductSimilarity[] @relation("ProductA")
+  similarFrom     ProductSimilarity[] @relation("ProductB")
+
+  @@map("products")
+}
+
+// ============================================================
+// RITUALS
+// AI-generated self-care rituals tied to a user.
+// Optionally linked to a product that inspired them.
+// ============================================================
+
+model Ritual {
+  id            String   @id @default(cuid())
+  userId        String
+  productId     String?  // optional — which candle inspired this ritual
+  mood          String?  // e.g. "anxious", "tired", "joyful"
+  timeAvailable Int?     // minutes the user has available
+  steps         Json     // array of AI-generated ritual steps
+  rawPrompt     String   // the prompt sent to the AI
+  title         String?  // AI-generated ritual title
+  summary       String?  // AI-generated one-line summary
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("rituals")
+}
+
+// ============================================================
+// BROWSING EVENTS
+// Tracks which products a user views — feeds the recommendation engine.
+// ============================================================
+
+model BrowsingEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  viewedAt  DateTime @default(now())
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([productId])
+  @@map("browsing_events")
+}
+
+// ============================================================
+// PRODUCT SIMILARITY
+// Precomputed similarity scores between products.
+// Populated by the recommendation algorithm.
+// ============================================================
+
+model ProductSimilarity {
+  id         String  @id @default(cuid())
+  productAId String
+  productBId String
+  score      Float   // 0.0 – 1.0, higher = more similar
+
+  // Relations
+  productA Product @relation("ProductA", fields: [productAId], references: [id], onDelete: Cascade)
+  productB Product @relation("ProductB", fields: [productBId], references: [id], onDelete: Cascade)
+
+  @@unique([productAId, productBId])
+  @@index([productAId])
+  @@map("product_similarities")
+}
+
+// ============================================================
+// RECOMMENDATIONS
+// AI-generated product recommendations surfaced to a user.
+// ============================================================
+
+model Recommendation {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  reason    String?  // AI-generated explanation for the recommendation
+  score     Float?   // relevance score
+  shownAt   DateTime @default(now())
+  clicked   Boolean  @default(false)
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("recommendations")
+}

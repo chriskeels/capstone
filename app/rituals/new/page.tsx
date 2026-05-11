@@ -8,6 +8,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
 
 type RitualStep = {
   step: number;
@@ -55,9 +56,16 @@ function NewRitualPageContent() {
   const [error, setError] = useState("");
   const [ritual, setRitual] = useState<GeneratedRitual | null>(null);
 
+  const { isSignedIn } = useAuth();
+
   const effectiveMood = mood === "custom" ? customMood : mood;
 
   async function handleGenerate() {
+    if (!isSignedIn) {
+      setError("You must be signed in to generate rituals. Please sign in first.");
+      return;
+    }
+
     if (!effectiveMood.trim()) {
       setError("Please select or describe how you're feeling.");
       return;
@@ -126,7 +134,11 @@ function NewRitualPageContent() {
             </p>
           </div>
 
-        {!ritual ? (
+          {!isSignedIn ? (
+            <div className="bg-ember border border-ash rounded-xl px-5 py-4 text-sm text-fog">
+              You must be signed in to generate rituals. <Link href="/sign-in" className="text-gold underline">Sign in here</Link>.
+            </div>
+          ) : !ritual ? (
           <div className="space-y-10">
 
             {/* Mood selector */}
@@ -141,7 +153,7 @@ function NewRitualPageContent() {
                     onClick={() => setMood(m.value)}
                     className={`px-4 py-2 rounded-full text-sm border transition-all ${
                       mood === m.value
-                        ? "bg-gold text-bark border-gold shadow-sm"
+                        ? "bg-gold text-bark border-gold shadow-sm ring-2 ring-white"
                         : "bg-ember/60 text-fog border-ash hover:border-gold hover:bg-ember"
                     }`}
                   >
@@ -152,7 +164,7 @@ function NewRitualPageContent() {
                   onClick={() => setMood("custom")}
                   className={`px-4 py-2 rounded-full text-sm border transition-all ${
                     mood === "custom"
-                      ? "bg-gold text-bark border-gold shadow-sm"
+                      ? "bg-gold text-bark border-gold shadow-sm ring-2 ring-white"
                       : "bg-ember/60 text-fog border-ash hover:border-gold hover:bg-ember"
                   }`}
                 >
@@ -183,7 +195,7 @@ function NewRitualPageContent() {
                     onClick={() => setTimeAvailable(t.value)}
                     className={`px-5 py-2.5 rounded-full text-sm border transition-all ${
                       timeAvailable === t.value
-                        ? "bg-gold text-bark border-gold shadow-sm"
+                        ? "bg-gold text-bark border-gold shadow-sm ring-2 ring-white"
                         : "bg-ember/60 text-fog border-ash hover:border-gold hover:bg-ember"
                     }`}
                   >

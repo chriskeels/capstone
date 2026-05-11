@@ -27,18 +27,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
   }
 
+  console.log("[Clerk Webhook] Received webhook, secret length:", WEBHOOK_SECRET.length);
+
   // Verify the webhook signature using svix
   const headerPayload = await headers();
   const svixId = headerPayload.get("svix-id");
   const svixTimestamp = headerPayload.get("svix-timestamp");
   const svixSignature = headerPayload.get("svix-signature");
 
+  console.log("[Clerk Webhook] Headers:", { svixId: !!svixId, svixTimestamp: !!svixTimestamp, svixSignature: !!svixSignature });
+
   if (!svixId || !svixTimestamp || !svixSignature) {
+    console.error("[Clerk Webhook] Missing svix headers");
     return NextResponse.json({ error: "Missing svix headers" }, { status: 400 });
   }
 
   const payload = await req.json();
   const body = JSON.stringify(payload);
+
+  console.log("[Clerk Webhook] Event type:", payload.type);
 
   const wh = new Webhook(WEBHOOK_SECRET);
   let event: ClerkUserEvent;
@@ -49,6 +56,7 @@ export async function POST(req: Request) {
       "svix-timestamp": svixTimestamp,
       "svix-signature": svixSignature,
     }) as ClerkUserEvent;
+    console.log("[Clerk Webhook] Verification successful for event:", event.type);
   } catch (err) {
     console.error("Webhook verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
